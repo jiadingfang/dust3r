@@ -1,0 +1,13 @@
+DATASET = 'iphone'
+
+MAX_STEPS = 250000
+INIT_LR = 0.001
+FINAL_LR = 0.0001
+BATCH_SIZE = 6144
+
+Config.dataset_cls = @iPhoneDatasetFromAllFrames
+iPhoneDatasetFromAllFrames.dataset = %DATASET
+iPhoneDatasetFromAllFrames.sequence = %SEQUENCE
+iPhoneDatasetFromAllFrames.batch_size = %BATCH_SIZE
+iPhoneDatasetFromAllFrames.split = 'train'
+Camera.use_center = True

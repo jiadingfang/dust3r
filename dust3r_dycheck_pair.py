@@ -7,6 +7,7 @@ from absl import app, flags, logging
 import numpy as np
 from matplotlib import pyplot as pl
 import torchvision.transforms as tvf
+from scipy.spatial.transform import Rotation as R
 
 from dycheck import core, geometry
 
@@ -39,7 +40,6 @@ ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5,
 
 
 def process_torch_imgs(torch_imgs, size, square_ok=False, verbose=True):
-
     imgs = []
     for torch_img in torch_imgs:
         # torch to pil image
@@ -98,6 +98,30 @@ def prepare_dataset():
     dataset = config.dataset_cls()
     return dataset
 
+def calculate_pose_diff(pred_pose1, pred_pose2, gt_pose1, gt_pose2):
+    gt_rel_pose = gt_pose2 @ np.linalg.inv(gt_pose1)
+    pred_rel_pose = pred_pose1 @ np.linalg.inv(pred_pose2)
+    
+    # calculate translation diff
+    gt_t = gt_rel_pose[:3, 3]
+    pred_t = pred_rel_pose[:3, 3]
+    t_diff = np.linalg.norm(gt_t - pred_t)
+
+    # calculate rotation diff
+    gt_r = gt_rel_pose[:3, :3]
+    pred_r = pred_rel_pose[:3, :3]
+    rotation_diff_matrix = gt_r.T @ pred_r
+
+    # Convert rotation matrix to rotation vector (in radians)
+    rotation_diff_rad = R.from_matrix(rotation_diff_matrix).as_rotvec()
+    # norm of the rotation vector is the angle of rotation
+    rotation_diff_rad = np.linalg.norm(rotation_diff_rad)
+
+    # Convert angle to degrees
+    rotation_diff_deg = np.rad2deg(rotation_diff_rad)
+
+    return t_diff, rotation_diff_deg
+
 def main(_):
 
     # dycheck dataset
@@ -125,7 +149,6 @@ def main(_):
 
     idx1 = indices[0]
     idx2 = indices[1]
-
     sample1 = dataset[idx1]
     sample2 = dataset[idx2]
     rgb1 = sample1['rgb']
@@ -158,14 +181,16 @@ def main(_):
     pred_pose2 = poses[1].cpu().numpy()
     gt_rel_pose = extrin2 @ np.linalg.inv(extrin1)
     pred_rel_pose = pred_pose1 @ np.linalg.inv(pred_pose2)
-    pose_diff = np.linalg.norm(gt_rel_pose - pred_rel_pose)
+    # pose_diff = np.linalg.norm(gt_rel_pose - pred_rel_pose)
+    t_diff, rotation_diff_deg = calculate_pose_diff(pred_pose1, pred_pose2, extrin1, extrin2)
     print('gt_pose1:', extrin1)
     print('gt_pose2:', extrin2)
     print('pred_pose1:', pred_pose1)
     print('pred_pose2:', pred_pose2)
     print('gt_rel_pose:', gt_rel_pose)
     print('pred_rel_pose:', pred_rel_pose)
-    print('pose_diff:', pose_diff)
+    print('translation error:', t_diff)
+    print('rotation error:', rotation_diff_deg)
 
     # find 2D-2D matches between the two images
     pts2d_list, pts3d_list = [], []

@@ -1,5 +1,19 @@
 ![demo](assets/dust3r.jpg)
 
+## Dust3r evluation on dycheck iPhone dataset
+[Dycheck](https://github.com/KAIR-BAIR/dycheck) iphone comes from the paper "Monocular Dynamic View Synthesis: A Reality Check" (https://arxiv.org/abs/2210.13445). It provides a new testing dynamic dataset for testing the performance of monocular dynamic view synthesis methods. I use this dataset as an exploratory testbed for understanding Dust3r's matching ability on dynamic scenes.
+
+### Custom setup guide
+1. Clone this repo and follow the official Dust3r guide below to set up code, submodules, checkpoints and environments (conda or docker).
+2. Clone code from official Dycheck repo (https://github.com/KAIR-BAIR/dycheck) and download its data
+3. Export dycheck repo path, e.g., `export PYTHONPATH=/dycheck`
+4. Setup dycheck data path, e.g. `/data/dycheck`. Directory should look like `dycheck->iphone->{apple  backpack  block  creeper  handwavy  haru-sit  mochi-high-five  paper-windmill  pillow  space-out  spin  sriracha-tree  teddy  whee}`
+5. Under `dust3r` directory, run `python dust3r_dycheck_pair.py` to evaluate on a pair of images. The results should include translation error, rotation error, relative translation accuracy.
+5. Under `dust3r` directory, run `python dust3r_dycheck_sequence.py` to evluate on sequences (n>=2) of images. The results should include Translation diff, Rotation diff, Relative translation angle, rta@15, rta@30, rta@45, rta@60.
+
+
+## Original Dust3r setup guide
+
 Official implementation of `DUSt3R: Geometric 3D Vision Made Easy`  
 [[Project page](https://dust3r.europe.naverlabs.com/)], [[DUSt3R arxiv](https://arxiv.org/abs/2312.14132)]  
 

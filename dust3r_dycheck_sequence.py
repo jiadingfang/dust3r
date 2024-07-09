@@ -28,13 +28,24 @@ FLAGS = flags.FLAGS
 
 DATA_ROOT = "/data/dycheck"
 
+# SEQUENCE = 'handwavy'
+# SEQUENCE = 'backpack'
+# SEQUENCE = 'creeper'
+# SEQUENCE = 'haru-sit'
+# SEQUENCE = 'mochi-high-five'
+# SEQUENCE = 'pillow'
+SEQUENCE = 'sriracha-tree'
+
 # dust3r configs
 model_path = "checkpoints/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth"
 device = 'cuda'
 batch_size = 1
 schedule = 'cosine'
 lr = 0.01
-niter = 300
+# lr = 0.001
+# niter = 300
+niter = 1000
+dt = 1 # number of index difference between pair of images
 
 ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
@@ -82,7 +93,7 @@ def prepare_dataset():
         + [
             "Config.engine_cls=None",
             "Config.model_cls=None",
-            "SEQUENCE='paper-windmill'",
+            f"SEQUENCE='{SEQUENCE}'",
             f"iPhoneParser.data_root='{DATA_ROOT}'",
             f"iPhoneDatasetFromAllFrames.split='train'",
             f"iPhoneDatasetFromAllFrames.training=False",
@@ -113,6 +124,8 @@ def calculate_pose_diff(gt_rel_pose, pred_rel_pose):
     gt_t = gt_rel_pose[:3, 3]
     pred_t = pred_rel_pose[:3, 3]
     t_diff = np.linalg.norm(gt_t - pred_t)
+    rta = np.arccos(np.dot(gt_t, pred_t) / (np.linalg.norm(gt_t) * np.linalg.norm(pred_t)))
+    rta = np.rad2deg(rta)
 
     # calculate rotation diff
     gt_r = gt_rel_pose[:3, :3]
@@ -127,12 +140,13 @@ def calculate_pose_diff(gt_rel_pose, pred_rel_pose):
     # Convert angle to degrees
     rotation_diff_deg = np.rad2deg(rotation_diff_rad)
 
-    return t_diff, rotation_diff_deg
+    return t_diff, rotation_diff_deg, rta
 
 def main(_):
 
     # dycheck dataset
     dataset = prepare_dataset()
+    print('Sequence:', SEQUENCE)
     print('Dataset length:', len(dataset))
 
     # load dust3r model
@@ -141,13 +155,17 @@ def main(_):
     # load images
     # indices = [0, 1, 2]
     # indices = [1, 2]
-    indices = list(range(10))
+    # indices = list(range(10))
+    # indices = list(range(0, len(dataset), 3))
+    indices = list(range(0, 300, 10))
 
     samples = [(rgb, intrin, extrin) for rgb, intrin, extrin in [load_dycheck(dataset, idx) for idx in indices]]
     images = process_torch_imgs([sample[0] for sample in samples], size=512)
 
     # run dust3r matching
-    pairs = make_pairs(images, scene_graph='complete', prefilter=None, symmetrize=True)
+    # pairs = make_pairs(images, scene_graph='complete', prefilter=None, symmetrize=True)
+    # pairs = make_pairs(images, scene_graph='swin', prefilter=None, symmetrize=True)
+    pairs = make_pairs(images, scene_graph='oneref', prefilter=None, symmetrize=True)
     output = inference(pairs, model, device, batch_size=batch_size)
 
     # align the predictions
@@ -162,16 +180,20 @@ def main(_):
     pts3d = scene.get_pts3d() # list: N x [H, W, 3]
     confidence_masks = scene.get_masks() # list: N x [H, W]
 
+
+    
     # gt rel pose for all sequences
     extrins = [sample[2] for sample in samples]
-    gt_rel_poses = [extrins[i] @ np.linalg.inv(extrins[i+1]) for i in range(len(extrins)-1)]
+    gt_rel_poses = [extrins[i] @ np.linalg.inv(extrins[i+dt]) for i in range(len(extrins)-dt)]
+    # print('gt_rel_poses:', gt_rel_poses)
 
     # pred rel pose for all sequences
-    pred_rel_poses = [poses[i].detach().cpu().numpy() @ np.linalg.inv(poses[i+1].detach().cpu().numpy()) for i in range(len(poses)-1)]
+    pred_rel_poses = [poses[i].detach().cpu().numpy() @ np.linalg.inv(poses[i+dt].detach().cpu().numpy()) for i in range(len(poses)-dt)]
+    # print('pred_rel_poses:', pred_rel_poses)
 
     # measure pose diff between gt and pred
     pose_diffs = [calculate_pose_diff(gt_rel_pose, pred_rel_pose) for gt_rel_pose, pred_rel_pose in zip(gt_rel_poses, pred_rel_poses)]
-    print('Pose diffs:', pose_diffs)
+    # print('Pose diffs:', pose_diffs)
 
     # # measure pose diff
     # pred_pose1 = poses[0].cpu().numpy()
@@ -215,6 +237,34 @@ def main(_):
     #     pl.plot([x0, x1 + W0], [y0, y1], '-+', color=cmap(i / (n_viz - 1)), scalex=False, scaley=False)
     # # pl.show(block=True)
     # pl.savefig('matches_dycheck.png')
+
+
+    # analysis pose diff
+    t_diffs = [pose_diff[0] for pose_diff in pose_diffs]
+    rotation_diffs = [pose_diff[1] for pose_diff in pose_diffs]
+    rtas = [pose_diff[2] for pose_diff in pose_diffs]
+    # mean and std of translation diff
+    t_diff_mean = np.mean(t_diffs)
+    t_diff_std = np.std(t_diffs)
+    # mean and std of rotation diff
+    rotation_diff_mean = np.mean(rotation_diffs)
+    rotation_diff_std = np.std(rotation_diffs)
+    # mean and std of relative translation accuracy
+    rta_mean = np.mean(rtas)
+    rta_std = np.std(rtas)
+    # rta@15, rta@30, rta@45, rta@60
+    rta_15 = len([rta for rta in rtas if rta < 15]) / len(rtas)
+    rta_30 = len([rta for rta in rtas if rta < 30]) / len(rtas)
+    rta_45 = len([rta for rta in rtas if rta < 45]) / len(rtas)
+    rta_60 = len([rta for rta in rtas if rta < 60]) / len(rtas)
+
+    print('Translation diff mean:', t_diff_mean, 'std:', t_diff_std)
+    print('Rotation diff mean:', rotation_diff_mean, 'std:', rotation_diff_std)
+    print('Relative translation angle mean:', rta_mean, 'std:', rta_std)
+    print('rta@15:', rta_15)
+    print('rta@30:', rta_30)
+    print('rta@45:', rta_45)
+    print('rta@60:', rta_60)
 
 
 if __name__ == "__main__":

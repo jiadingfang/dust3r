@@ -106,6 +106,9 @@ def calculate_pose_diff(pred_pose1, pred_pose2, gt_pose1, gt_pose2):
     gt_t = gt_rel_pose[:3, 3]
     pred_t = pred_rel_pose[:3, 3]
     t_diff = np.linalg.norm(gt_t - pred_t)
+    rta = np.arccos(np.clip(np.dot(gt_t, pred_t) / (np.linalg.norm(gt_t) * np.linalg.norm(pred_t)), -1.0, 1.0))
+    rta = np.rad2deg(rta)
+
 
     # calculate rotation diff
     gt_r = gt_rel_pose[:3, :3]
@@ -120,7 +123,7 @@ def calculate_pose_diff(pred_pose1, pred_pose2, gt_pose1, gt_pose2):
     # Convert angle to degrees
     rotation_diff_deg = np.rad2deg(rotation_diff_rad)
 
-    return t_diff, rotation_diff_deg
+    return t_diff, rotation_diff_deg, rta
 
 def main(_):
 
@@ -145,7 +148,7 @@ def main(_):
     # import pdb; pdb.set_trace()
 
     # load images
-    indices = [0, 1]
+    indices = [200, 201]
 
     idx1 = indices[0]
     idx2 = indices[1]
@@ -176,13 +179,15 @@ def main(_):
     pts3d = scene.get_pts3d()
     confidence_masks = scene.get_masks()
 
+    
+
     # measure pose diff
     pred_pose1 = poses[0].cpu().numpy()
     pred_pose2 = poses[1].cpu().numpy()
     gt_rel_pose = extrin2 @ np.linalg.inv(extrin1)
     pred_rel_pose = pred_pose1 @ np.linalg.inv(pred_pose2)
     # pose_diff = np.linalg.norm(gt_rel_pose - pred_rel_pose)
-    t_diff, rotation_diff_deg = calculate_pose_diff(pred_pose1, pred_pose2, extrin1, extrin2)
+    t_diff, rotation_diff_deg, rta = calculate_pose_diff(pred_pose1, pred_pose2, extrin1, extrin2)
     print('gt_pose1:', extrin1)
     print('gt_pose2:', extrin2)
     print('pred_pose1:', pred_pose1)
@@ -191,6 +196,7 @@ def main(_):
     print('pred_rel_pose:', pred_rel_pose)
     print('translation error:', t_diff)
     print('rotation error:', rotation_diff_deg)
+    print('relative translation accuracy:', rta)
 
     # find 2D-2D matches between the two images
     pts2d_list, pts3d_list = [], []

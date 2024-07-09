@@ -8,8 +8,12 @@
 2. Clone code from official Dycheck repo (https://github.com/KAIR-BAIR/dycheck) and download its data
 3. Export dycheck repo path, e.g., `export PYTHONPATH=/dycheck`
 4. Setup dycheck data path, e.g. `/data/dycheck`. Directory should look like `dycheck->iphone->{apple  backpack  block  creeper  handwavy  haru-sit  mochi-high-five  paper-windmill  pillow  space-out  spin  sriracha-tree  teddy  whee}`
-5. Under `dust3r` directory, run `python dust3r_dycheck_pair.py` to evaluate on a pair of images. The results should include translation error, rotation error, relative translation accuracy.
-5. Under `dust3r` directory, run `python dust3r_dycheck_sequence.py` to evluate on sequences (n>=2) of images. The results should include Translation diff, Rotation diff, Relative translation angle, rta@15, rta@30, rta@45, rta@60.
+
+### Usage
+1. Under `dust3r` directory, run `python dust3r_dycheck_pair.py` to evaluate on a pair of images. The results should include `translation error`, `rotation error`, `relative translation accuracy`.
+2. Under `dust3r` directory, run `python dust3r_dycheck_sequence.py` to evluate on sequences (n>=2) of images. The results should include `Translation diff`, `Rotation diff`, `Relative translation angle`, `rta@15`, `rta@30`, `rta@45`, `rta@60`.
+
+Note: configs are listed at the beginnin of the file, feel free to test around.
 
 
 ## Original Dust3r setup guide

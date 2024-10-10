@@ -7,28 +7,8 @@
 import tqdm
 import torch
 from dust3r.utils.device import to_cpu, collate_with_cat
-from dust3r.model import AsymmetricCroCo3DStereo, inf  # noqa: F401, needed when loading the model
 from dust3r.utils.misc import invalid_to_nans
 from dust3r.utils.geometry import depthmap_to_pts3d, geotrf
-
-
-def load_model(model_path, device, verbose=True):
-    if verbose:
-        print('... loading model from', model_path)
-    ckpt = torch.load(model_path, map_location='cpu')
-    args = ckpt['args'].model.replace("ManyAR_PatchEmbed", "PatchEmbedDust3R")
-    if 'landscape_only' not in args:
-        args = args[:-1] + ', landscape_only=False)'
-    else:
-        args = args.replace(" ", "").replace('landscape_only=True', 'landscape_only=False')
-    assert "landscape_only=False" in args
-    if verbose:
-        print(f"instantiating : {args}")
-    net = eval(args)
-    s = net.load_state_dict(ckpt['model'], strict=False)
-    if verbose:
-        print(s)
-    return net.to(device)
 
 
 def _interleave_imgs(img1, img2):
@@ -51,9 +31,10 @@ def make_batch_symmetric(batch):
 
 def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, use_amp=False, ret=None):
     view1, view2 = batch
+    ignore_keys = set(['depthmap', 'dataset', 'label', 'instance', 'idx', 'true_shape', 'rng'])
     for view in batch:
-        for name in 'img pts3d valid_mask camera_pose camera_intrinsics F_matrix corres'.split():  # pseudo_focal
-            if name not in view:
+        for name in view.keys():  # pseudo_focal
+            if name in ignore_keys:
                 continue
             view[name] = view[name].to(device, non_blocking=True)
 
@@ -83,7 +64,7 @@ def inference(pairs, model, device, batch_size=8, verbose=True):
         batch_size = 1
 
     for i in tqdm.trange(0, len(pairs), batch_size, disable=not verbose):
-        res = loss_of_one_batch(collate_with_cat(pairs[i:i+batch_size]), model, None, device)
+        res = loss_of_one_batch(collate_with_cat(pairs[i:i + batch_size]), model, None, device)
         result.append(to_cpu(res))
 
     result = collate_with_cat(result, lists=multiple_shapes)
